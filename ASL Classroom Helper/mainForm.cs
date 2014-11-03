@@ -25,14 +25,23 @@ namespace ASL_Classroom_Helper
         private SpeechRecognitionEngine speechEngine;
         private DictationGrammar dictationGrammar;
 
+        private double soundDirection = 0.0f;
+
+        private Skeleton[] skeletons;
+
         public bool setupKinect()
         {
             if(KinectSensor.KinectSensors.Count > 0)
             {
+                skeletons = new Skeleton[6];
                 this.kinect = KinectSensor.KinectSensors[0];
 
+                this.kinect.AudioSource.BeamAngleChanged += AudioSource_BeamAngleChanged;
+                this.kinect.AudioSource.SoundSourceAngleChanged += AudioSource_SoundSourceAngleChanged;
                 this.kinect.ColorFrameReady += kinect_ColorFrameReady;
                 this.kinect.ColorStream.Enable();
+                this.kinect.SkeletonFrameReady += kinect_SkeletonFrameReady;
+                this.kinect.SkeletonStream.Enable();
                 this.kinect.Start();
 
                 this.colorPixels = new byte[this.kinect.ColorStream.FramePixelDataLength];
@@ -57,6 +66,26 @@ namespace ASL_Classroom_Helper
             return false;
         }
 
+        void kinect_SkeletonFrameReady(object sender, SkeletonFrameReadyEventArgs e)
+        {
+            using (SkeletonFrame skeletonFrame = e.OpenSkeletonFrame())
+            {
+                if (skeletonFrame != null)
+                {
+                    skeletonFrame.CopySkeletonDataTo(skeletons);
+                }
+            }
+        }
+
+        void AudioSource_BeamAngleChanged(object sender, BeamAngleChangedEventArgs e)
+        {
+        }
+
+        void AudioSource_SoundSourceAngleChanged(object sender, SoundSourceAngleChangedEventArgs e)
+        {
+            this.soundDirection = e.Angle;
+        }
+
         void speechEngine_SpeechRecognized(object sender, SpeechRecognizedEventArgs e)
         {
             this.speechTextLabel.Text = e.Result.Text;
@@ -68,6 +97,7 @@ namespace ASL_Classroom_Helper
 
         IntPtr ptr;
         BitmapData bmpData;
+        private byte[] white = { 255, 255, 255 };
 
         void kinect_ColorFrameReady(object sender, ColorImageFrameReadyEventArgs e)
         {
@@ -78,8 +108,39 @@ namespace ASL_Classroom_Helper
                     colorFrame.CopyPixelDataTo(this.colorPixels);
                     bmpData = colorBitmap.LockBits(this.imageRectangle, ImageLockMode.WriteOnly, colorBitmap.PixelFormat);
                     ptr = bmpData.Scan0;
+
                     Marshal.Copy(this.colorPixels, 0, ptr, colorFrame.PixelDataLength);
+
                     this.colorBitmap.UnlockBits(bmpData);
+
+                    using (Graphics g = Graphics.FromImage(this.colorBitmap))
+                    {
+                        foreach(Skeleton s in skeletons)
+                        {
+                            if(s != null && s.TrackingState == SkeletonTrackingState.Tracked
+                                && this.speechTextLabel.Text != "")
+                            {
+                                g.FillRectangle(new SolidBrush(Color.White), 
+                                    ((s.Joints[JointType.Head].Position.X + 1) / 2) * 
+                                    colorBitmap.Width - 64,
+                                    colorBitmap.Height - 
+                                    ((s.Joints[JointType.Head].Position.Y + 1) / 2) * 
+                                    colorBitmap.Height + 64, 128, 32);
+
+                                g.DrawString(this.speechTextLabel.Text.Substring(0, 
+                                    this.speechTextLabel.Text.Length > 11 ?
+                                    12 : this.speechTextLabel.Text.Length), 
+                                    new System.Drawing.Font("Arial", 16), new SolidBrush(Color.Black),
+                                    ((s.Joints[JointType.Head].Position.X + 1) / 2) *
+                                    colorBitmap.Width - 64,
+                                    colorBitmap.Height -
+                                    ((s.Joints[JointType.Head].Position.Y + 1) / 2) *
+                                    colorBitmap.Height + 64);
+                                break;
+                            }
+                        }
+                    }
+
                     this.kinectPictureBox.Image = this.colorBitmap;
                 }
             }
