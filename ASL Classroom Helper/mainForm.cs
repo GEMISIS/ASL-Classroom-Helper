@@ -38,6 +38,8 @@ namespace ASL_Classroom_Helper
 
                 this.kinect.AudioSource.BeamAngleChanged += AudioSource_BeamAngleChanged;
                 this.kinect.AudioSource.SoundSourceAngleChanged += AudioSource_SoundSourceAngleChanged;
+                this.kinect.AudioSource.BeamAngleMode = BeamAngleMode.Manual;
+                this.kinect.AudioSource.ManualBeamAngle = 0;
                 this.kinect.ColorFrameReady += kinect_ColorFrameReady;
                 this.kinect.ColorStream.Enable();
                 this.kinect.SkeletonFrameReady += kinect_SkeletonFrameReady;
@@ -79,16 +81,25 @@ namespace ASL_Classroom_Helper
 
         void AudioSource_BeamAngleChanged(object sender, BeamAngleChangedEventArgs e)
         {
+            Console.WriteLine("Angle: " + e.Angle);
         }
 
         void AudioSource_SoundSourceAngleChanged(object sender, SoundSourceAngleChangedEventArgs e)
         {
+            Console.WriteLine("Angle: " + e.Angle);
             this.soundDirection = e.Angle;
         }
 
         void speechEngine_SpeechRecognized(object sender, SpeechRecognizedEventArgs e)
         {
-            this.speechTextLabel.Text = e.Result.Text;
+            if(this.kinect.AudioSource.SoundSourceAngleConfidence > 0.80)
+            {
+                this.speechTextLabel.Text = e.Result.Text;
+            }
+            else
+            {
+                this.speechTextLabel.Text = "No text";
+            }
         }
 
         void speechEngine_SpeechHypothesized(object sender, SpeechHypothesizedEventArgs e)
@@ -120,6 +131,8 @@ namespace ASL_Classroom_Helper
                             if(s != null && s.TrackingState == SkeletonTrackingState.Tracked
                                 && this.speechTextLabel.Text != "")
                             {
+                                this.kinect.AudioSource.ManualBeamAngle = s.Joints[JointType.Head].Position.X * 50;
+
                                 g.FillRectangle(new SolidBrush(Color.White), 
                                     ((s.Joints[JointType.Head].Position.X + 1) / 2) * 
                                     colorBitmap.Width - 64,
